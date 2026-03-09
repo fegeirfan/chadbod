@@ -28,6 +28,44 @@ function toPlainText(html: string): string {
     .trim();
 }
 
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function renderTextAsHtml(text: string): string {
+  return `<p>${escapeHtml(text).replace(/\n/g, "<br />")}</p>`;
+}
+
+async function fetchGeminiFallback(prompt: string): Promise<string | null> {
+  try {
+    const response = await fetch("/api/gemini-fallback", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ prompt }),
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const data = (await response.json()) as { answer?: string };
+    if (!data.answer || typeof data.answer !== "string") {
+      return null;
+    }
+
+    return renderTextAsHtml(data.answer.trim());
+  } catch {
+    return null;
+  }
+}
+
 export default function SapaChatApp() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputValue, setInputValue] = useState("");
@@ -92,11 +130,21 @@ export default function SapaChatApp() {
     setIsTyping(true);
 
     const delay = 800 + Math.random() * 1000;
-    timeoutRef.current = window.setTimeout(() => {
+    timeoutRef.current = window.setTimeout(async () => {
+      const localResult = findResponse(sourceText);
+      let botContent = localResult.response;
+
+      if (!localResult.matched) {
+        const fallback = await fetchGeminiFallback(sourceText);
+        if (fallback) {
+          botContent = fallback;
+        }
+      }
+
       const botMessage: ChatMessage = {
         id: userMessage.id + 1,
         role: "bot",
-        content: findResponse(sourceText),
+        content: botContent,
         timestamp: getNow(),
       };
 

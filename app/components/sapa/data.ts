@@ -172,7 +172,12 @@ const dummyResponses: Record<string, DummyResponse> = {
   },
 };
 
-export function findResponse(text: string): string {
+export type LocalResponseResult = {
+  matched: boolean;
+  response: string;
+};
+
+export function findResponse(text: string): LocalResponseResult {
   const lower = text.toLowerCase();
 
   for (const [key, item] of Object.entries(dummyResponses)) {
@@ -181,9 +186,15 @@ export function findResponse(text: string): string {
     }
 
     if (item.keywords.some((keyword) => lower.includes(keyword))) {
-      return item.response;
+      return {
+        matched: true,
+        response: item.response,
+      };
     }
   }
 
-  return dummyResponses.default.response;
+  return {
+    matched: false,
+    response: dummyResponses.default.response,
+  };
 }
